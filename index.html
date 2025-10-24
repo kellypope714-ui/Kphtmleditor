@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>KP HTML Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      --bg: #fff;
+      --text: #000;
+      --accent: #444;
+      --swatch-border: #ccc;
+    }
+    body.dark {
+      --bg: #1e1e1e;
+      --text: #f0f0f0;
+      --accent: #888;
+      --swatch-border: #555;
+    }
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .controls, .translator-controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      padding: 10px;
+      background: var(--accent);
+      color: white;
+    }
+    button, select {
+      margin: 5px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background: white;
+      color: var(--accent);
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 14px;
+      border: none;
+      resize: none;
+    }
+    #code { flex: 1; height: 30vh; }
+    #notes { height: 40px; margin-top: 5px; }
+    iframe { flex: 1; border: none; width: 100%; height: 30vh; }
+    #palette { padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .swatch {
+      width: 60px; height: 60px;
+      border: 2px solid var(--swatch-border);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; font-size: 10px; cursor: pointer;
+    }
+    .swatch span { color: var(--text); }
+    #translator, #html-output {
+      padding: 10px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #f9f9f9;
+      border-top: 1px solid #ccc;
+      flex: 1;
+    }
+    @media (max-width: 768px) {
+      #code, iframe, #translator, #html-output { height: 25vh; }
+      .swatch { width: 50px; height: 50px; }
+    }
+.editor-preview {
+  display: flex;
+  flex: 1;
+  height: 70vh;
+  gap: 10px;
+  padding: 10px;
+}
+
+.editor-panels {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#preview {
+  flex: 1;
+  border: 1px solid var(--swatch-border);
+  background: white;
+  height: 100%;
+}
+  </style>
+<link id="dynamic-font-link" rel="stylesheet" href="">
+</head>
+<body>
+  <div class="controls">
+    <button onclick="previewCode()">Preview</button>
+    <button onclick="downloadCode()">Save to File</button>
+    <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+<button onclick="addFont()">Add Font</button>
+  </div>
+
+  <div class="editor-preview">
+  <div class="editor-panels">
+    <textarea id="code" placeholder="Paste your Canva HTML/CSS/JS here..."></textarea>
+    <textarea id="cssCode" placeholder="Write your CSS here..."></textarea>
+    <textarea id="jsCode" placeholder="Write your JavaScript here..."></textarea>
+    <input type="text" id="notes" placeholder="Version notes (e.g. Soft Touch v2 — hover glow added)" />
+    <div id="palette"></div>
+  </div>
+  <iframe id="preview"></iframe>
+</div>
+
+  <div class="translator-controls">
+    <button onclick="formatText('bold')">Bold</button>
+    <button onclick="formatText('italic')">Italic</button>
+    <button onclick="formatText('underline')">Underline</button>
+    <button onclick="formatText('bullet')">Bullets</button>
+    <select onchange="setFontSize(this.value)">
+      <option value="">Font Size</option>
+      <option value="14px">Small</option>
+      <option value="16px">Medium</option>
+      <option value="18px">Large</option>
+      <option value="20px">Extra Large</option>
+    </select>
+    <button onclick="convertToHTML()">Convert to HTML</button>
+<select id="fontSelect" onchange="applyFont()" class="font-preview">
+  <option value="">Select Font</option>
+  <option value="Playfair Display" style="font-family:'Playfair Display', serif;">Playfair Display</option>
+  <option value="Cormorant Garamond" style="font-family:'Cormorant Garamond', serif;">Cormorant Garamond</option>
+  <option value="Quattrocento" style="font-family:'Quattrocento', serif;">Quattrocento</option>
+  <option value="Parisienne" style="font-family:'Parisienne', cursive;">Parisienne</option>
+  <option value="Dancing Script" style="font-family:'Dancing Script', cursive;">Dancing Script</option>
+  <option value="Rachana" style="font-family:'Rachana', serif;">Rachana</option>
+  <option value="Georgia" style="font-family:Georgia, serif;">Georgia</option>
+  <option value="Garamond" style="font-family:Garamond, serif;">Garamond</option>
+</select>
+
+<input type="text" id="fontLink" placeholder="Paste Google Fonts link" style="width:250px;" />
+<input type="text" id="fontName" placeholder="Font name (e.g. 'Lora')" />
+<button onclick="addFont()">Add Font</button>
+  </div>
+
+  <div contenteditable="true" id="translator" placeholder="Type your care guide here..."></div>
+  <textarea id="html-output" readonly placeholder="Your HTML code will appear here..."></textarea>
+
+  <script>
+    function previewCode() {
+  const html = document.getElementById('code').value;
+  const css = `<style>${document.getElementById('cssCode').value}</style>`;
+  const js = `<script>${document.getElementById('jsCode').value}<\/script>`;
+  const fullCode = html + css + js;
+  document.getElementById('preview').srcdoc = fullCode;
+  extractColors(html + css);
+}
+
+    function downloadCode() {
+      const code = document.getElementById('code').value;
+      const notes = document.getElementById('notes').value || "kp-template";
+      const blob = new Blob([code], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${notes.replace(/\s+/g, '-')}-${Date.now()}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+    }
+
+    function extractColors(code) {
+      const hexRegex = /#[0-9a-fA-F]{3,6}/g;
+      const matches = [...new Set(code.match(hexRegex))];
+      const palette = document.getElementById('palette');
+      palette.innerHTML = '';
+      matches.forEach(hex => {
+        const swatch = document.createElement('div');
+        swatch.className = 'swatch';
+        swatch.style.background = hex;
+        swatch.innerHTML = `<span>${hex}</span>`;
+        swatch.onclick = () => navigator.clipboard.writeText(hex);
+        palette.appendChild(swatch);
+      });
+    }
+
+    function getContrast(hex1, hex2) {
+      function luminance(hex) {
+        let rgb = hex.replace('#','');
+        if (rgb.length === 3) rgb = rgb.split('').map(c => c+c).join('');
+        const r = parseInt(rgb.substr(0,2),16)/255;
+        const g = parseInt(rgb.substr(2,2),16)/255;
+        const b = parseInt(rgb.substr(4,2),16)/255;
+        const a = [r,g,b].map(v => v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4));
+        return 0.2126*a[0] + 0.7152*a[1] + 0.0722*a[2];
+      }
+      const L1 = luminance(hex1);
+      const L2 = luminance(hex2);
+      return (Math.max(L1,L2)+0.05)/(Math.min(L1,L2)+0.05);
+    }
+
+    function formatText(command) {
+      if (command === 'bullet') {
+        document.execCommand('insertUnorderedList');
+      } else {
+        document.execCommand(command);
+      }
+    }
+
+    function setFontSize(size) {
+      document.execCommand('fontSize', false, '7'); // Use size 7 as placeholder
+      const editor = document.getElementById('translator');
+      const spans = editor.querySelectorAll('font[size="7"]');
+      spans.forEach(span => {
+        span.removeAttribute('size');
+        span.style.fontSize = size;
+      });
+    }
+
+    function convertToHTML() {
+      const html = document.getElementById('translator').innerHTML;
+      document.getElementById('html-output').value = html;
+    }
+function applyFont() {
+  const font = document.getElementById("fontSelect").value;
+  if (font) {
+    document.execCommand("fontName", false, font);
+  }
+}
+
+function addFont() {
+  const link = document.getElementById("fontLink").value;
+  const name = document.getElementById("fontName").value;
+  if (link && name) {
+    document.getElementById("dynamic-font-link").href = link;
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    option.style.fontFamily = `'${name}'`;
+    document.getElementById("fontSelect").appendChild(option);
+    document.getElementById("fontLink").value = "";
+    document.getElementById("fontName").value = "";
+  }
+}
+  </script>
+</body>
+</html>
